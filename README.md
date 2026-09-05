@@ -171,20 +171,36 @@ the working third-person profile:
 - `VR_DecoupledPitch=true` (was `false`) in `config.txt` - lets you look
   up/down freely with the headset independent of the body's pitch, which
   first-person needs and third-person-over-shoulder didn't.
+- `VR_AimMethod=2` (Right Controller) (was `0`/Game) in `config.txt` -
+  **required alongside** `VR_DecoupledPitch=true`, not independent of it.
+  With decoupled pitch on, the pawn's control-rotation pitch is held
+  separate from where you're actually looking; under `VR_AimMethod=0`
+  both the game's attack-aim logic *and* its menu/HUD placement read
+  that same control rotation, so with it decoupled and no longer
+  pointing where you look, attacks fired straight up and menus opened
+  above the player's head. Switching aim source to the right controller
+  fixes this. (Found by testing - see "Iterating" below.)
 
 Deliberately **not** changed from the working third-person config:
 `VR_Compatibility_SkipPostInitProperties=true` stays on (still needed to
 avoid the crash described above - the reference profile has it off,
 which may just mean it targets a different UEVR build), and
-`VR_AimMethod`/`VR_DPadShiftingMethod` are untouched since they aren't
-obviously first-person-specific and changing them risks regressing
-input that already works.
+`VR_DPadShiftingMethod` is untouched since it isn't obviously
+first-person-specific.
 
-**Status: untested** - this is a from-the-README port, not yet verified
-in-headset (see "Iterating" below - I can't put the headset on myself).
-Expect the `186.21337890625` head-height offset in particular to need
-retuning for this game's actual player mesh scale/pivot once someone
-tries it.
+**Status: in progress.** First injection attempt showed a broken/black
+scene with only Slate UI elements (buttons, compass) rendering,
+duplicated - turned out unrelated to the profile changes above: the
+injector had selected **OpenVR** as the runtime (`config.txt` recorded
+`Frontend_RequestedRuntime=openvr_api.dll`), which failed to find a
+SteamVR install, and OpenXR then also failed to load as a fallback - so
+no VR runtime was active at all. Re-injecting with **OpenXR** explicitly
+selected (per "Injecting into the game" above) fixed that and first-person
+rendering came up correctly. The attacks-go-up/menus-above-head issue
+above was the next thing found and is now addressed by `VR_AimMethod=2`,
+not yet re-confirmed in-headset. The `186.21337890625` head-height
+offset may still need retuning for this game's actual player mesh
+scale/pivot.
 
 ## Lua binding attempt (abandoned - not needed)
 
