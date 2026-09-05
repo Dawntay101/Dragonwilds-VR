@@ -171,15 +171,18 @@ the working third-person profile:
 - `VR_DecoupledPitch=true` (was `false`) in `config.txt` - lets you look
   up/down freely with the headset independent of the body's pitch, which
   first-person needs and third-person-over-shoulder didn't.
-- `VR_AimMethod=2` (Right Controller) (was `0`/Game) in `config.txt` -
-  **required alongside** `VR_DecoupledPitch=true`, not independent of it.
-  With decoupled pitch on, the pawn's control-rotation pitch is held
-  separate from where you're actually looking; under `VR_AimMethod=0`
-  both the game's attack-aim logic *and* its menu/HUD placement read
-  that same control rotation, so with it decoupled and no longer
-  pointing where you look, attacks fired straight up and menus opened
-  above the player's head. Switching aim source to the right controller
-  fixes this. (Found by testing - see "Iterating" below.)
+- `VR_AimMethod` (was `0`/Game) in `config.txt` - **required alongside**
+  `VR_DecoupledPitch=true`, not independent of it. With decoupled pitch
+  on, the pawn's control-rotation pitch is held separate from where
+  you're actually looking; under `VR_AimMethod=0` (Game) both the game's
+  attack-aim logic *and* its menu/HUD placement read that same control
+  rotation, so with it decoupled and no longer pointing where you look,
+  attacks fired straight up and menus opened above the player's head.
+  First fixed with `VR_AimMethod=2` (Right Controller) - confirmed
+  working in-headset. Now set to `VR_AimMethod=1` (Head/HMD, per UEVR's
+  `AimMethod` enum in `src/mods/VR.hpp`) instead, so aim follows head
+  look rather than requiring the right thumbstick to redirect it -
+  untested, revert to `2` if it doesn't track correctly.
 
 Deliberately **not** changed from the working third-person config:
 `VR_Compatibility_SkipPostInitProperties=true` stays on (still needed to
