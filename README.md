@@ -198,7 +198,23 @@ the working third-person profile:
   but apparently not reaching whatever value this game's Blueprint aim
   logic reads continuously, which needs the explicit sync.
 - `VR_AimModifyPlayerControlRotation=true` (was `false`) in
-  `config.txt` - the fix described above. Untested in-headset yet.
+  `config.txt` - the fix described above. Confirmed working in-headset:
+  attacks/aim now follow head look with no stick input needed.
+- `profile/scripts/menu_aim_freeze.lua` - side effect of the above fix:
+  menus/HUD are positioned in 3D using the *same* `ControlRotation` that
+  head-aim now overwrites every frame with zero smoothing (unlike
+  controller-based aim, which does smooth it - see the script's comments
+  for the full trace through UEVR's source). Result: menus re-center on
+  your gaze instantly, making them unreadable ("moving out of the way").
+  There's no separate cvar to decouple menu placement from aim - both
+  read the same value. Workaround: hold **Left Stick Click (L3)** to
+  temporarily suspend head-aim (`vr:set_aim_allowed(false)`, unused by
+  Dragonwilds' native control scheme) so the menu holds still while
+  reading it, release to resume aiming with your head. Untested -
+  first thing to verify is whether this is comfortable to hold while
+  also navigating a menu with the same hand's thumbstick; if not, an
+  easy fix is to swap which button this binds to, or make it a toggle
+  instead of a hold.
 
 Deliberately **not** changed from the working third-person config:
 `VR_Compatibility_SkipPostInitProperties=true` stays on (still needed to
@@ -216,8 +232,10 @@ SteamVR install, and OpenXR then also failed to load as a fallback - so
 no VR runtime was active at all. Re-injecting with **OpenXR** explicitly
 selected (per "Injecting into the game" above) fixed that and first-person
 rendering came up correctly. The attacks-go-up/menus-above-head issue
-above was the next thing found and is now addressed by `VR_AimMethod=2`,
-not yet re-confirmed in-headset. The `186.21337890625` head-height
+above was next, fixed by `VR_AimMethod` + `VR_AimModifyPlayerControlRotation`
+together (see above) - confirmed working. Currently chasing the
+menu/HUD-instability side effect of that fix via
+`menu_aim_freeze.lua`, untested. The `186.21337890625` head-height
 offset may still need retuning for this game's actual player mesh
 scale/pivot.
 
