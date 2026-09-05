@@ -139,6 +139,53 @@ thumbstick in a direction) since Quest Touch controllers have no physical
 D-pad - this already worked out of the box on this profile
 (`VR_DPadShifting=true`, the default).
 
+## First-person mode (experimental, `firstPerson` branch)
+
+Attempting to switch from the default third-person-over-shoulder camera
+to first-person, following the approach used by the community profile
+mentioned above
+([vilmarpn/RuneScape-Dragonwilds-Profile-UEVR](https://github.com/vilmarpn/RuneScape-Dragonwilds-Profile-UEVR),
+MIT-licensed - ported with attribution). Three pieces, all additive to
+the working third-person profile:
+
+- `profile/uobjecthook/camera_state.json` - a UEVR UObjectHook camera
+  attachment that pins the VR camera to `Acknowledged Pawn > Properties >
+  Mesh` with a `+186.2` Z offset (head height), replacing the default
+  third-person boom camera. This is why `VR_CameraForwardOffset` /
+  `VR_CameraRightOffset` / `VR_CameraUpOffset` in `config.txt` are zeroed
+  on this branch - the old third-person-tuned offsets would otherwise
+  compound with this attachment.
+- `profile/uobjecthook/5048649411680316389_props.json` - a UObjectHook
+  property override on `Acknowledged Pawn` setting
+  `bUseControllerRotationYaw`/`Roll` to true, so the character's body
+  turns with the camera/controller instead of staying independently
+  oriented (needed in first-person; the opposite of what you want in
+  third-person over-shoulder).
+- `profile/scripts/mesh_Weapon.lua` - hides the player's own skeletal
+  mesh components (so the head-height camera doesn't see inside the
+  character model) and attaches equipped weapon meshes to the right-hand
+  motion controller, with per-weapon-type rotation offsets (dagger vs.
+  bow vs. everything else). Uses UEVR's pawn/motion-controller-state Lua
+  API, not the action-handle API - see the note below on why that
+  distinction matters.
+- `VR_DecoupledPitch=true` (was `false`) in `config.txt` - lets you look
+  up/down freely with the headset independent of the body's pitch, which
+  first-person needs and third-person-over-shoulder didn't.
+
+Deliberately **not** changed from the working third-person config:
+`VR_Compatibility_SkipPostInitProperties=true` stays on (still needed to
+avoid the crash described above - the reference profile has it off,
+which may just mean it targets a different UEVR build), and
+`VR_AimMethod`/`VR_DPadShiftingMethod` are untouched since they aren't
+obviously first-person-specific and changing them risks regressing
+input that already works.
+
+**Status: untested** - this is a from-the-README port, not yet verified
+in-headset (see "Iterating" below - I can't put the headset on myself).
+Expect the `186.21337890625` head-height offset in particular to need
+retuning for this game's actual player mesh scale/pivot once someone
+tries it.
+
 ## Lua binding attempt (abandoned - not needed)
 
 `profile/scripts/controller_bindings.lua` originally tried to directly
