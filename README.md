@@ -179,10 +179,26 @@ the working third-person profile:
   rotation, so with it decoupled and no longer pointing where you look,
   attacks fired straight up and menus opened above the player's head.
   First fixed with `VR_AimMethod=2` (Right Controller) - confirmed
-  working in-headset. Now set to `VR_AimMethod=1` (Head/HMD, per UEVR's
-  `AimMethod` enum in `src/mods/VR.hpp`) instead, so aim follows head
-  look rather than requiring the right thumbstick to redirect it -
-  untested, revert to `2` if it doesn't track correctly.
+  working in-headset. Then switched to `VR_AimMethod=1` (Head/HMD, per
+  UEVR's `AimMethod` enum in `src/mods/VR.hpp`) so aim follows head look
+  instead of requiring the right thumbstick - but that alone changed
+  nothing (still needed the stick). Root cause, found by reading UEVR's
+  source (`src/mods/vr/FFakeStereoRenderingHook.cpp`): setting
+  `AimMethod` only feeds a new rotation into an internal calculation
+  gated by a *second*, independent toggle -
+  `VR_AimModifyPlayerControlRotation` (still `false`, its default) - that
+  controls whether that computed rotation actually gets written into the
+  real `PlayerController::ControlRotation` the game's own attack-trace
+  and menu-placement logic reads (via `manual_update_control_rotation()`,
+  only called when this toggle is on and an aim method is active). The
+  right-controller fix likely worked anyway because a *different* hook
+  (intercepting `ProcessViewRotation` directly, in
+  `IXRTrackingSystemHook.cpp`) unconditionally overwrites the rotation
+  once any non-Game aim method is active - resolving the skyward bug,
+  but apparently not reaching whatever value this game's Blueprint aim
+  logic reads continuously, which needs the explicit sync.
+- `VR_AimModifyPlayerControlRotation=true` (was `false`) in
+  `config.txt` - the fix described above. Untested in-headset yet.
 
 Deliberately **not** changed from the working third-person config:
 `VR_Compatibility_SkipPostInitProperties=true` stays on (still needed to
