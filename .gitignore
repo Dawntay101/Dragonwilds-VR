@@ -1,0 +1,12 @@
+# UEVR binaries are downloaded by tools/Install-UEVR.ps1 - don't vendor them in git
+/uevr/
+
+# Local UEVR logs / scratch that can end up in the profile folder at runtime
+profile/*.log
+profile/log.txt
+profile/*.dmp
+profile/crash.dmp
+
+# OS / editor cruft
+Thumbs.db
+.vs/

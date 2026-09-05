@@ -1,0 +1,26 @@
+# Executed automatically by UEVR at injection (CVarManager::execute_console_script).
+# One console command per line. # or ; starts a comment.
+
+# r.MotionBlurQuality/r.MotionBlur.Amount/r.DefaultFeature.MotionBlur: off
+# for VR comfort (motion blur baked into a headset view is disorienting
+# regardless of rendering method) - unrelated to the AA change below, kept.
+r.MotionBlurQuality 0
+r.MotionBlur.Amount 0
+r.DefaultFeature.MotionBlur 0
+
+# r.AntiAliasingMethod was previously forced to 0 (off) to fix ghosting
+# that was specific to Alternating/AFR rendering (TAA history mismatched
+# between the two alternating eyes). We've since moved to Native Stereo
+# on a nightly UEVR build, which doesn't have that per-eye AFR mismatch -
+# so AA is no longer forced off here. Leaving it forced off starves UE5's
+# Lumen GI/reflections denoiser of the temporal accumulation it needs,
+# which likely explains the pink/colorful static patches (raw undenoised
+# Lumen noise) seen after disabling AA. Not overriding it now - the game
+# picks its own default (usually TSR) again.
+# r.AntiAliasingMethod 0
+
+# UE5's Virtual Shadow Maps are a common source of glowing pink/magenta
+# shadow artifacts under UEVR's stereo rendering hook. Didn't fix the
+# pink patches here (turned out to be the AA cvar above instead), but
+# left in since it's a real, found cvar and harmless to keep off.
+r.Shadow.Virtual.Enable 0
