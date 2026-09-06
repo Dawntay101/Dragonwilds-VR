@@ -210,40 +210,36 @@ the working third-person profile:
   There's no separate cvar to decouple menu placement from aim - both
   read the same value. The fix is a **Left Stick Click (L3) + Left
   Grip** press-to-toggle chord suspending head-aim
-  (`vr:set_aim_allowed(false)`). Iterating on this caused two crashes
-  during testing (`UEVRBackend.dll`, `STATUS_STACK_BUFFER_OVERRUN`,
-  offset `0x727cac` both times) that were first suspected to be a
-  pre-existing UEVR bug unrelated to this script, based on Windows'
-  crash log showing an identical fault even before the script's
-  callback had run once in one case - but disabling the script
-  entirely (temporarily, to test) stopped the crash on plain L3
-  presses (L3 doubles as Sprint natively), definitively confirming the
-  script *was* the cause and the log-based theory was wrong. Current
-  best guess: the crashing version called
-  `uevr.params.functions:log_info(...)` for debug logging on every
-  L3/grip press-release edge, and `on_xinput_get_state` fires on
-  whatever thread calls the real `XInputGetState` - plausibly not the
-  thread UEVR's logger expects, and a stack-buffer-overrun is a
-  plausible symptom of a non-thread-safe logging call. The no-logging,
-  toggle-edge-only version didn't crash, confirming `set_aim_allowed`
-  itself is safe to call from that callback - but the chord also
-  didn't visibly do anything, and with no logging there was no way to
-  tell why. A version that deferred the `log_info` *call* to
-  `on_early_calculate_stereo_view_offset` but still built the log
-  string (`..` concatenation, `tostring()`) inside
-  `on_xinput_get_state` crashed the same way again - narrowing the
-  cause specifically to Lua memory allocation (string concatenation
-  touches Lua's GC/string-interning state) racing across whatever
-  thread `on_xinput_get_state` runs on vs. the render thread, not
-  logging as such. Current version does zero string work of any kind
-  in `on_xinput_get_state` - only booleans/numbers and the
-  already-proven-safe `set_aim_allowed` call - and moves all string
-  building, including the `log_info` calls, into
-  `on_early_calculate_stereo_view_offset` (which already does plenty
-  of string work every frame elsewhere in this project without
-  incident). Should reveal from `profile/log.txt` whether the chord is
-  even being detected (grip actually reaching LB, both buttons landing
-  in the same poll) without hitting the crash again.
+  (`vr:set_aim_allowed(false)`).
+
+  Getting there took a lot of failed iteration worth remembering: the
+  chord was originally read via `on_xinput_get_state` (checking
+  `XINPUT_GAMEPAD_LEFT_THUMB`/`XINPUT_GAMEPAD_LEFT_SHOULDER` bits, LB
+  being where UEVR maps the left grip). Every version that did more
+  than the absolute minimum inside that callback - even one doing
+  *no string work at all*, just booleans/numbers plus the
+  `vr:set_aim_allowed` call - crashed the game
+  (`UEVRBackend.dll`, `STATUS_STACK_BUFFER_OVERRUN`) the instant L3
+  was pressed. One crash was first misdiagnosed as a pre-existing UEVR
+  bug unrelated to this script (Windows' crash log showed an identical
+  fault offset on a run where the callback hadn't even executed yet) -
+  disabling the script entirely and retesting is what actually
+  disproved that theory. Conclusion: `on_xinput_get_state` fires on
+  whatever thread calls the real `XInputGetState`, almost certainly
+  different from - and unsynchronized with - the thread every other
+  Lua callback runs on, making it unsafe for this build regardless of
+  what runs inside it. Current version avoids it entirely: it reads
+  the chord via UEVR's VR action-handle API
+  (`get_action_handle`/`is_action_active` on
+  `/actions/default/in/Grip` and `/actions/default/in/JoystickClick`,
+  the same one `VR.cpp` itself uses internally) from inside
+  `on_early_calculate_stereo_view_offset` (the render-thread callback
+  `mesh_Weapon.lua` already uses safely every frame) instead. This is
+  the same action-handle API `controller_bindings.lua` tried and
+  abandoned for throwing an uncatchable exception - but that attempt
+  also called it from `on_xinput_get_state`, so that failure may have
+  been the same poisoned-callback problem, not a flaw in the API
+  itself. Untested.
 
 Deliberately **not** changed from the working third-person config:
 `VR_Compatibility_SkipPostInitProperties=true` stays on (still needed to
