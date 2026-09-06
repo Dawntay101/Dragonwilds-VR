@@ -207,14 +207,18 @@ the working third-person profile:
   for the full trace through UEVR's source). Result: menus re-center on
   your gaze instantly, making them unreadable ("moving out of the way").
   There's no separate cvar to decouple menu placement from aim - both
-  read the same value. Workaround: hold **Left Stick Click (L3)** to
-  temporarily suspend head-aim (`vr:set_aim_allowed(false)`, unused by
-  Dragonwilds' native control scheme) so the menu holds still while
-  reading it, release to resume aiming with your head. Untested -
-  first thing to verify is whether this is comfortable to hold while
-  also navigating a menu with the same hand's thumbstick; if not, an
-  easy fix is to swap which button this binds to, or make it a toggle
-  instead of a hold.
+  read the same value. Workaround: hold **Left Stick Click (L3) + Left
+  Grip** together to temporarily suspend head-aim
+  (`vr:set_aim_allowed(false)`). A single-button hold (just L3) was
+  tried first and dropped - awkward to hold steady with the same thumb
+  that also has to move the stick to navigate a menu - so it's now a
+  two-button chord instead. The left grip normally maps to LB (Quick
+  Access in the game's native scheme), so the script also masks LB out
+  of the reported gamepad state while the chord is held, to stop Quick
+  Access from popping open every time; LB still works normally on its
+  own. Untested - first thing to verify is whether the chord is
+  comfortable to hold while also navigating a menu with the same hand's
+  thumbstick.
 
 Deliberately **not** changed from the working third-person config:
 `VR_Compatibility_SkipPostInitProperties=true` stays on (still needed to
