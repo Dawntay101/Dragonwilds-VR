@@ -214,11 +214,12 @@ the working third-person profile:
   and dropped both times - awkward to hold steady with the same hand
   that also has to move the stick to navigate a menu - so it's now a
   press-to-toggle chord instead. The left grip normally maps to LB
-  (Quick Access in the game's native scheme), so the script also masks
-  LB out of the reported gamepad state during the toggle press itself,
-  to stop that press from opening Quick Access; LB still works normally
-  on its own. First in-headset test (2026-09-05) reported the chord did
-  nothing - reviewed UEVR's own source (`VR.cpp`/`.hpp`,
+  (Quick Access in the game's native scheme); an earlier version masked
+  LB out of the reported gamepad state during the toggle press to stop
+  Quick Access from opening, removed per Kevin's request since it got
+  in the way while testing the toggle - Quick Access can pop open
+  alongside a chord press now. First in-headset test (2026-09-05)
+  reported the chord did nothing - reviewed UEVR's own source (`VR.cpp`/`.hpp`,
   `IXRTrackingSystemHook.cpp`, `OverlayComponent.cpp`) and every
   head-aim code path, plus the LB/grip mapping and mod-callback
   ordering, checks out as it should from reading the code alone. Added

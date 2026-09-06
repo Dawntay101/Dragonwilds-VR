@@ -28,14 +28,14 @@
     UEVR's default Touch-controller mapping puts the left grip on
     XINPUT_GAMEPAD_LEFT_SHOULDER (LB), which Dragonwilds' native control
     scheme already uses for Quick Access (see README control table) -
-    unlike L3, which is unused. So whenever both chord buttons are
-    simultaneously held (i.e. during the toggle press itself), this
-    script also masks the LB bit out of the reported gamepad state
-    before the game sees it, to stop that same press from opening Quick
-    Access. LB still works normally on its own, without L3. L3+R3
-    together also briefly triggers this (since L3 is part of that combo)
-    while opening UEVR's own overlay - harmless, unrelated to the game's
-    own menus.
+    unlike L3, which is unused. An earlier version of this script masked
+    the LB bit out of the reported gamepad state while the chord was
+    held, to stop that same press from opening Quick Access - removed
+    per Kevin's request (2026-09-05) since it was getting in the way
+    while testing the toggle itself; Quick Access can now pop open
+    alongside a chord press. L3+R3 together also briefly triggers this
+    (since L3 is part of that combo) while opening UEVR's own overlay -
+    harmless, unrelated to the game's own menus.
 
     Untested in-headset - first report (2026-09-05) was that the chord
     does nothing. Traced through UEVR's own source
@@ -92,9 +92,5 @@ uevr.sdk.callbacks.on_xinput_get_state(function(retval, user_index, state)
 
     if toggled then
         debug("chord toggled - frozen = " .. tostring(frozen) .. ", is_aim_allowed() now = " .. tostring(vr:is_aim_allowed()))
-    end
-
-    if chord_held then
-        state.Gamepad.wButtons = buttons & ~XINPUT_GAMEPAD_LEFT_SHOULDER
     end
 end)
