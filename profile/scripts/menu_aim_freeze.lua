@@ -37,16 +37,32 @@
     while opening UEVR's own overlay - harmless, unrelated to the game's
     own menus.
 
-    Untested in-headset - first thing to verify is whether the chord
-    reliably toggles the freeze (both on and back off), and whether the
-    frozen state ever gets stuck on if the game or UEVR resets aim state
-    out from under it.
+    Untested in-headset - first report (2026-09-05) was that the chord
+    does nothing. Traced through UEVR's own source
+    (src/mods/VR.cpp/.hpp, src/mods/vr/IXRTrackingSystemHook.cpp,
+    src/mods/vr/OverlayComponent.cpp) to confirm set_aim_allowed(false)
+    really does gate every head-aim code path via a single
+    is_any_aim_method_active() check, and that grip really is
+    XINPUT_GAMEPAD_LEFT_SHOULDER, and that mods run in an order
+    (VR before LuaLoader) where our button reads see real state and our
+    LB mask isn't undone afterward - all consistent with this working.
+    So the C++ side looks right; added logging below (only on state
+    changes, not every frame) to see from the next log.txt whether the
+    chord is even being detected as pressed, and whether the toggle
+    fires, before guessing further blind.
 ]]
 
 local vr = uevr.params.vr
+local log = uevr.params.functions
+
+local function debug(msg)
+    log:log_info("[menu_aim_freeze] " .. msg)
+end
 
 local frozen = false
 local chord_was_held = false
+local l3_was_held = false
+local lb_was_held = false
 
 uevr.sdk.callbacks.on_xinput_get_state(function(retval, user_index, state)
     if state == nil then return end
@@ -56,12 +72,27 @@ uevr.sdk.callbacks.on_xinput_get_state(function(retval, user_index, state)
     local lb_held = (buttons & XINPUT_GAMEPAD_LEFT_SHOULDER) ~= 0
     local chord_held = l3_held and lb_held
 
-    if chord_held and not chord_was_held then
+    if l3_held ~= l3_was_held then
+        debug("L3 " .. (l3_held and "pressed" or "released"))
+        l3_was_held = l3_held
+    end
+
+    if lb_held ~= lb_was_held then
+        debug("LB/grip " .. (lb_held and "pressed" or "released"))
+        lb_was_held = lb_held
+    end
+
+    local toggled = chord_held and not chord_was_held
+    if toggled then
         frozen = not frozen
     end
     chord_was_held = chord_held
 
     vr:set_aim_allowed(not frozen)
+
+    if toggled then
+        debug("chord toggled - frozen = " .. tostring(frozen) .. ", is_aim_allowed() now = " .. tostring(vr:is_aim_allowed()))
+    end
 
     if chord_held then
         state.Gamepad.wButtons = buttons & ~XINPUT_GAMEPAD_LEFT_SHOULDER

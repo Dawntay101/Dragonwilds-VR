@@ -217,8 +217,15 @@ the working third-person profile:
   (Quick Access in the game's native scheme), so the script also masks
   LB out of the reported gamepad state during the toggle press itself,
   to stop that press from opening Quick Access; LB still works normally
-  on its own. Untested - first thing to verify is whether the chord
-  reliably toggles the freeze on and back off.
+  on its own. First in-headset test (2026-09-05) reported the chord did
+  nothing - reviewed UEVR's own source (`VR.cpp`/`.hpp`,
+  `IXRTrackingSystemHook.cpp`, `OverlayComponent.cpp`) and every
+  head-aim code path, plus the LB/grip mapping and mod-callback
+  ordering, checks out as it should from reading the code alone. Added
+  debug logging to the script (only on button/state changes, so it
+  won't flood `profile/log.txt`) to see on the next attempt whether the
+  chord is even being detected, and whether the toggle actually fires,
+  before guessing further.
 
 Deliberately **not** changed from the working third-person config:
 `VR_Compatibility_SkipPostInitProperties=true` stays on (still needed to
