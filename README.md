@@ -224,10 +224,19 @@ the working third-person profile:
   L3/grip press-release edge, and `on_xinput_get_state` fires on
   whatever thread calls the real `XInputGetState` - plausibly not the
   thread UEVR's logger expects, and a stack-buffer-overrun is a
-  plausible symptom of a non-thread-safe logging call. This version
-  removes all logging and only calls `vr:set_aim_allowed` on an actual
-  toggle edge (not unconditionally every frame like the crashing
-  version did) - untested, not a confirmed fix.
+  plausible symptom of a non-thread-safe logging call. The no-logging,
+  toggle-edge-only version didn't crash, confirming `set_aim_allowed`
+  itself is safe to call from that callback - but the chord also
+  didn't visibly do anything, and with no logging there was no way to
+  tell why. Current version logs again, but defers the actual
+  `log_info` call to `on_early_calculate_stereo_view_offset` (a
+  render-thread callback `mesh_Weapon.lua` already calls into every
+  frame without incident) instead of calling it from inside
+  `on_xinput_get_state` directly - only a plain Lua variable write
+  happens on that callback now. Should reveal from `profile/log.txt`
+  whether the chord is even being detected (grip actually reaching LB,
+  both buttons landing in the same poll) without re-touching the
+  thread suspected of causing the earlier crash.
 
 Deliberately **not** changed from the working third-person config:
 `VR_Compatibility_SkipPostInitProperties=true` stays on (still needed to
