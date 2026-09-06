@@ -208,23 +208,26 @@ the working third-person profile:
   full working toggle implementation). Result: menus re-center on your
   gaze instantly, making them unreadable ("moving out of the way").
   There's no separate cvar to decouple menu placement from aim - both
-  read the same value. The fix was a **Left Stick Click (L3) + Left
+  read the same value. The fix is a **Left Stick Click (L3) + Left
   Grip** press-to-toggle chord suspending head-aim
-  (`vr:set_aim_allowed(false)`), iterated on across a few attempts (see
-  git log) - but after two crashes during testing, both immediately
-  after injecting, Kevin was confident the crash was caused by this
-  session's changes (L3 doubles as Sprint in this game, which worked
-  fine before this script existed). Windows' own crash log showed both
-  crashes as an identical `UEVRBackend.dll` fault (offset `0x727cac`,
-  `STATUS_STACK_BUFFER_OVERRUN`) - including once before this script's
-  `on_xinput_get_state` callback had run even once - pointing at a
-  pre-existing native bug unrelated to this script rather than the
-  script itself. Rather than keep arguing from the log, **the script is
-  now fully disabled** (no callback registered at all - head-aim runs
-  with zero manual override) so Kevin can test with the variable
-  actually removed: if pressing L3 alone still crashes with this file
-  inert, that confirms the crash is upstream of anything in `profile/`;
-  if it stops crashing, the earlier analysis was wrong somewhere.
+  (`vr:set_aim_allowed(false)`). Iterating on this caused two crashes
+  during testing (`UEVRBackend.dll`, `STATUS_STACK_BUFFER_OVERRUN`,
+  offset `0x727cac` both times) that were first suspected to be a
+  pre-existing UEVR bug unrelated to this script, based on Windows'
+  crash log showing an identical fault even before the script's
+  callback had run once in one case - but disabling the script
+  entirely (temporarily, to test) stopped the crash on plain L3
+  presses (L3 doubles as Sprint natively), definitively confirming the
+  script *was* the cause and the log-based theory was wrong. Current
+  best guess: the crashing version called
+  `uevr.params.functions:log_info(...)` for debug logging on every
+  L3/grip press-release edge, and `on_xinput_get_state` fires on
+  whatever thread calls the real `XInputGetState` - plausibly not the
+  thread UEVR's logger expects, and a stack-buffer-overrun is a
+  plausible symptom of a non-thread-safe logging call. This version
+  removes all logging and only calls `vr:set_aim_allowed` on an actual
+  toggle edge (not unconditionally every frame like the crashing
+  version did) - untested, not a confirmed fix.
 
 Deliberately **not** changed from the working third-person config:
 `VR_Compatibility_SkipPostInitProperties=true` stays on (still needed to
