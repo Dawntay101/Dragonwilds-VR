@@ -10,32 +10,33 @@
     together as a toggle (not a hold) to suspend head-aim
     (vr:set_aim_allowed(false)); press the chord again to resume.
 
-    CONFIRMED (2026-09-05) that an earlier version of this script
-    caused a native crash (UEVRBackend.dll, STATUS_STACK_BUFFER_OVERRUN)
-    as soon as L3 was pressed, even with no chord engaged - disabling
-    the script entirely fixed it. Prime suspect: that version called
-    `uevr.params.functions:log_info(...)` directly from inside
-    on_xinput_get_state, which fires on whatever thread calls the real
-    XInputGetState - likely not the thread UEVR's logger expects to be
-    called from. The next version removed all logging and only called
-    vr:set_aim_allowed on an actual toggle edge - no crash this time,
-    confirming set_aim_allowed itself is safe to call from that
-    callback. But the toggle didn't visibly do anything either, and
-    with no logging there was no way to tell why.
+    CONFIRMED (2026-09-05) twice now that building a log message
+    (`..` string concatenation, `tostring()`) inside
+    on_xinput_get_state reliably crashes the game
+    (UEVRBackend.dll, STATUS_STACK_BUFFER_OVERRUN) the instant L3 is
+    pressed. A version with no logging at all, and one that deferred
+    only the `log_info` *call* itself to a safer callback while still
+    building the log string in on_xinput_get_state, both crashed the
+    same way; a version with zero string work of any kind in
+    on_xinput_get_state (only boolean reads/compares and the
+    already-proven-safe vr:set_aim_allowed call) did not crash. That
+    points specifically at Lua memory allocation (string concatenation
+    allocates and touches Lua's GC/string-interning state) being unsafe
+    from whatever thread on_xinput_get_state runs on - probably a
+    separate thread from the one running the game's other Lua
+    callbacks (on_early_calculate_stereo_view_offset etc.), racing on
+    the shared Lua state's allocator when both fire close together.
 
-    This version adds logging back, but *not* from inside
-    on_xinput_get_state: it only writes to a plain Lua local
-    (`pending_log`) there (cheap, no uevr API calls beyond the
-    already-proven-safe set_aim_allowed), and defers the actual
-    log_info call to on_early_calculate_stereo_view_offset - a render-
-    thread callback that mesh_Weapon.lua already calls into (including
-    its own error-logging path) continuously, every frame, across every
-    test session so far without ever causing a native crash. This
-    should tell us, from the next profile/log.txt, whether the chord is
-    being detected at all (grip really mapping to LB, both buttons
-    registering as held in the same poll) and whether set_aim_allowed
-    is being called with the value we expect - without touching the
-    thread that's suspected of causing the earlier crash.
+    So the rule for this callback now: ONLY booleans, numbers, and the
+    already-proven-safe vr:set_aim_allowed call - never build a string,
+    touch a table, or call anything else here. All string-building
+    (including the log_info calls) happens in
+    on_early_calculate_stereo_view_offset instead, a render-thread
+    callback mesh_Weapon.lua already does plenty of string work in
+    (get_full_name, string.find, its own error tracebacks) every frame
+    without incident - it just reads the plain booleans/numbers set
+    below and turns them into log lines there, safely off-thread from
+    whatever on_xinput_get_state runs on.
 ]]
 
 local vr = uevr.params.vr
@@ -43,12 +44,14 @@ local vr = uevr.params.vr
 local frozen = false
 local chord_was_held = false
 
--- Written from on_xinput_get_state (the xinput-hook thread - no uevr API
--- calls here except the already-proven-safe set_aim_allowed). Read and
--- logged from on_early_calculate_stereo_view_offset (render thread) instead.
+-- Only booleans/numbers, written from on_xinput_get_state - see comment
+-- above for why. All string-building happens where these are read, in
+-- on_early_calculate_stereo_view_offset below.
 local last_l3_held = false
 local last_lb_held = false
-local pending_log = nil
+local edge_pending = false
+local toggle_pending = false
+local last_toggled_frozen = false
 
 uevr.sdk.callbacks.on_xinput_get_state(function(retval, user_index, state)
     if state == nil then return end
@@ -59,23 +62,28 @@ uevr.sdk.callbacks.on_xinput_get_state(function(retval, user_index, state)
     local chord_held = l3_held and lb_held
 
     if l3_held ~= last_l3_held or lb_held ~= last_lb_held then
-        pending_log = "L3=" .. tostring(l3_held) .. " LB/grip=" .. tostring(lb_held)
         last_l3_held = l3_held
         last_lb_held = lb_held
+        edge_pending = true
     end
 
     if chord_held and not chord_was_held then
         frozen = not frozen
         vr:set_aim_allowed(not frozen)
-        pending_log = (pending_log and (pending_log .. " | ") or "") ..
-            "chord toggled, frozen=" .. tostring(frozen)
+        last_toggled_frozen = frozen
+        toggle_pending = true
     end
     chord_was_held = chord_held
 end)
 
 uevr.sdk.callbacks.on_early_calculate_stereo_view_offset(function(device, view_index, world_to_meters, position, rotation, is_double)
-    if pending_log ~= nil then
-        uevr.params.functions:log_info("[menu_aim_freeze] " .. pending_log)
-        pending_log = nil
+    if edge_pending then
+        edge_pending = false
+        uevr.params.functions:log_info("[menu_aim_freeze] L3=" .. tostring(last_l3_held) .. " LB/grip=" .. tostring(last_lb_held))
+    end
+
+    if toggle_pending then
+        toggle_pending = false
+        uevr.params.functions:log_info("[menu_aim_freeze] chord toggled, frozen=" .. tostring(last_toggled_frozen))
     end
 end)

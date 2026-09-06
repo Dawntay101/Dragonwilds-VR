@@ -228,15 +228,22 @@ the working third-person profile:
   toggle-edge-only version didn't crash, confirming `set_aim_allowed`
   itself is safe to call from that callback - but the chord also
   didn't visibly do anything, and with no logging there was no way to
-  tell why. Current version logs again, but defers the actual
-  `log_info` call to `on_early_calculate_stereo_view_offset` (a
-  render-thread callback `mesh_Weapon.lua` already calls into every
-  frame without incident) instead of calling it from inside
-  `on_xinput_get_state` directly - only a plain Lua variable write
-  happens on that callback now. Should reveal from `profile/log.txt`
-  whether the chord is even being detected (grip actually reaching LB,
-  both buttons landing in the same poll) without re-touching the
-  thread suspected of causing the earlier crash.
+  tell why. A version that deferred the `log_info` *call* to
+  `on_early_calculate_stereo_view_offset` but still built the log
+  string (`..` concatenation, `tostring()`) inside
+  `on_xinput_get_state` crashed the same way again - narrowing the
+  cause specifically to Lua memory allocation (string concatenation
+  touches Lua's GC/string-interning state) racing across whatever
+  thread `on_xinput_get_state` runs on vs. the render thread, not
+  logging as such. Current version does zero string work of any kind
+  in `on_xinput_get_state` - only booleans/numbers and the
+  already-proven-safe `set_aim_allowed` call - and moves all string
+  building, including the `log_info` calls, into
+  `on_early_calculate_stereo_view_offset` (which already does plenty
+  of string work every frame elsewhere in this project without
+  incident). Should reveal from `profile/log.txt` whether the chord is
+  even being detected (grip actually reaching LB, both buttons landing
+  in the same poll) without hitting the crash again.
 
 Deliberately **not** changed from the working third-person config:
 `VR_Compatibility_SkipPostInitProperties=true` stays on (still needed to
