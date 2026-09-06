@@ -1,96 +1,32 @@
 --[[
     RSDWVR - menu_aim_freeze.lua
 
-    Head-aim (VR_AimMethod=1 + VR_AimModifyPlayerControlRotation=true,
-    see README "First-person mode") writes the HMD's rotation into the
+    DISABLED (2026-09-05) at Kevin's request, to test his hypothesis
+    that this script - not the pre-existing UEVRBackend.dll crash
+    documented below - is what's causing the game to crash as soon as
+    L3 is pressed (L3 doubles as Sprint in this game's native scheme,
+    and he could sprint fine before this script existed). The evidence
+    gathered so far pointed elsewhere (Windows' own crash record showed
+    the identical UEVRBackend.dll fault offset on an injection where
+    this script's on_xinput_get_state callback never even ran once),
+    but that's exactly the kind of claim that should be settled by
+    testing with the variable removed, not by re-arguing the log
+    analysis - so head-aim now runs with no manual override at all,
+    every frame, no button reads. If it still crashes on L3 with this
+    file inert, that's strong confirmation the crash really is
+    upstream/pre-existing; if it stops crashing, the earlier analysis
+    was wrong somewhere and worth revisiting.
+
+    Original purpose (kept here for when this gets re-enabled): head-aim
+    (VR_AimMethod=1 + VR_AimModifyPlayerControlRotation=true, see README
+    "First-person mode") writes the HMD's rotation into the
     PlayerController's ControlRotation every frame with no smoothing.
     That's also the same value UEVR's automatic 3D-projected UI uses to
-    orient menus/HUD, so menus end up re-centering on your gaze
-    instantly and become unreadable ("moving out of the way").
-
-    There's no separate cvar to decouple menu placement from aim - both
-    read the same ControlRotation. This script works around it with a
-    toggle: press Left Stick Click (L3) *and* the left grip/squeeze
-    button together (a chord, not a hold) to flip head-aim off
-    (vr:set_aim_allowed(false), which UEVR treats the same as
-    AimMethod=Game - ControlRotation stops being overwritten by head
-    tracking, so the menu holds still while you read it); press the
-    same chord again to flip it back on. A plain hold (of L3 alone,
-    then of the L3+grip chord) was tried first and dropped both times -
-    awkward to hold steady with the same hand that also has to move the
-    stick to navigate a menu - so this edge-detects the chord instead
-    and toggles a persistent `frozen` flag rather than tracking
-    press-state directly. Uses the raw XInput polling callback
-    (on_xinput_get_state) rather than the action-handle API
-    (get_action_handle/is_action_active), which throws an uncatchable
-    exception in this build - see controller_bindings.lua.
-
-    UEVR's default Touch-controller mapping puts the left grip on
-    XINPUT_GAMEPAD_LEFT_SHOULDER (LB), which Dragonwilds' native control
-    scheme already uses for Quick Access (see README control table) -
-    unlike L3, which is unused. An earlier version of this script masked
-    the LB bit out of the reported gamepad state while the chord was
-    held, to stop that same press from opening Quick Access - removed
-    per Kevin's request (2026-09-05) since it was getting in the way
-    while testing the toggle itself; Quick Access can now pop open
-    alongside a chord press. L3+R3 together also briefly triggers this
-    (since L3 is part of that combo) while opening UEVR's own overlay -
-    harmless, unrelated to the game's own menus.
-
-    Untested in-headset - first report (2026-09-05) was that the chord
-    does nothing. Traced through UEVR's own source
-    (src/mods/VR.cpp/.hpp, src/mods/vr/IXRTrackingSystemHook.cpp,
-    src/mods/vr/OverlayComponent.cpp) to confirm set_aim_allowed(false)
-    really does gate every head-aim code path via a single
-    is_any_aim_method_active() check, and that grip really is
-    XINPUT_GAMEPAD_LEFT_SHOULDER, and that mods run in an order
-    (VR before LuaLoader) where our button reads see real state and our
-    LB mask isn't undone afterward - all consistent with this working.
-    So the C++ side looks right; added logging below (only on state
-    changes, not every frame) to see from the next log.txt whether the
-    chord is even being detected as pressed, and whether the toggle
-    fires, before guessing further blind.
+    orient menus/HUD, so menus re-center on your gaze instantly and
+    become unreadable. This script's fix was a toggle chord (Left Stick
+    Click + Left Grip) calling vr:set_aim_allowed(false) to temporarily
+    suspend head-aim so menus hold still - see git history on this file
+    for the full working version and the debugging trail (grip->LB
+    mapping, mod callback ordering, UEVR source citations) before
+    reintroducing it.
 ]]
-
-local vr = uevr.params.vr
-local log = uevr.params.functions
-
-local function debug(msg)
-    log:log_info("[menu_aim_freeze] " .. msg)
-end
-
-local frozen = false
-local chord_was_held = false
-local l3_was_held = false
-local lb_was_held = false
-
-uevr.sdk.callbacks.on_xinput_get_state(function(retval, user_index, state)
-    if state == nil then return end
-
-    local buttons = state.Gamepad.wButtons
-    local l3_held = (buttons & XINPUT_GAMEPAD_LEFT_THUMB) ~= 0
-    local lb_held = (buttons & XINPUT_GAMEPAD_LEFT_SHOULDER) ~= 0
-    local chord_held = l3_held and lb_held
-
-    if l3_held ~= l3_was_held then
-        debug("L3 " .. (l3_held and "pressed" or "released"))
-        l3_was_held = l3_held
-    end
-
-    if lb_held ~= lb_was_held then
-        debug("LB/grip " .. (lb_held and "pressed" or "released"))
-        lb_was_held = lb_held
-    end
-
-    local toggled = chord_held and not chord_was_held
-    if toggled then
-        frozen = not frozen
-    end
-    chord_was_held = chord_held
-
-    vr:set_aim_allowed(not frozen)
-
-    if toggled then
-        debug("chord toggled - frozen = " .. tostring(frozen) .. ", is_aim_allowed() now = " .. tostring(vr:is_aim_allowed()))
-    end
-end)

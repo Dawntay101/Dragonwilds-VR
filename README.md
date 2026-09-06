@@ -204,29 +204,27 @@ the working third-person profile:
   menus/HUD are positioned in 3D using the *same* `ControlRotation` that
   head-aim now overwrites every frame with zero smoothing (unlike
   controller-based aim, which does smooth it - see the script's comments
-  for the full trace through UEVR's source). Result: menus re-center on
-  your gaze instantly, making them unreadable ("moving out of the way").
+  for the full trace through UEVR's source, and git history for the
+  full working toggle implementation). Result: menus re-center on your
+  gaze instantly, making them unreadable ("moving out of the way").
   There's no separate cvar to decouple menu placement from aim - both
-  read the same value. Workaround: press **Left Stick Click (L3) + Left
-  Grip** together as a toggle (not a hold) to suspend head-aim
-  (`vr:set_aim_allowed(false)`); press the same chord again to resume
-  it. Plain holds (first just L3, then the L3+grip chord) were tried
-  and dropped both times - awkward to hold steady with the same hand
-  that also has to move the stick to navigate a menu - so it's now a
-  press-to-toggle chord instead. The left grip normally maps to LB
-  (Quick Access in the game's native scheme); an earlier version masked
-  LB out of the reported gamepad state during the toggle press to stop
-  Quick Access from opening, removed per Kevin's request since it got
-  in the way while testing the toggle - Quick Access can pop open
-  alongside a chord press now. First in-headset test (2026-09-05)
-  reported the chord did nothing - reviewed UEVR's own source (`VR.cpp`/`.hpp`,
-  `IXRTrackingSystemHook.cpp`, `OverlayComponent.cpp`) and every
-  head-aim code path, plus the LB/grip mapping and mod-callback
-  ordering, checks out as it should from reading the code alone. Added
-  debug logging to the script (only on button/state changes, so it
-  won't flood `profile/log.txt`) to see on the next attempt whether the
-  chord is even being detected, and whether the toggle actually fires,
-  before guessing further.
+  read the same value. The fix was a **Left Stick Click (L3) + Left
+  Grip** press-to-toggle chord suspending head-aim
+  (`vr:set_aim_allowed(false)`), iterated on across a few attempts (see
+  git log) - but after two crashes during testing, both immediately
+  after injecting, Kevin was confident the crash was caused by this
+  session's changes (L3 doubles as Sprint in this game, which worked
+  fine before this script existed). Windows' own crash log showed both
+  crashes as an identical `UEVRBackend.dll` fault (offset `0x727cac`,
+  `STATUS_STACK_BUFFER_OVERRUN`) - including once before this script's
+  `on_xinput_get_state` callback had run even once - pointing at a
+  pre-existing native bug unrelated to this script rather than the
+  script itself. Rather than keep arguing from the log, **the script is
+  now fully disabled** (no callback registered at all - head-aim runs
+  with zero manual override) so Kevin can test with the variable
+  actually removed: if pressing L3 alone still crashes with this file
+  inert, that confirms the crash is upstream of anything in `profile/`;
+  if it stops crashing, the earlier analysis was wrong somewhere.
 
 Deliberately **not** changed from the working third-person config:
 `VR_Compatibility_SkipPostInitProperties=true` stays on (still needed to
