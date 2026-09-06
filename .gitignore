@@ -6,6 +6,7 @@ profile/*.log
 profile/log.txt
 profile/*.dmp
 profile/crash.dmp
+profile/data/
 
 # OS / editor cruft
 Thumbs.db

@@ -200,46 +200,54 @@ the working third-person profile:
 - `VR_AimModifyPlayerControlRotation=true` (was `false`) in
   `config.txt` - the fix described above. Confirmed working in-headset:
   attacks/aim now follow head look with no stick input needed.
-- `profile/scripts/menu_aim_freeze.lua` - side effect of the above fix:
-  menus/HUD are positioned in 3D using the *same* `ControlRotation` that
-  head-aim now overwrites every frame with zero smoothing (unlike
-  controller-based aim, which does smooth it - see the script's comments
-  for the full trace through UEVR's source, and git history for the
-  full working toggle implementation). Result: menus re-center on your
-  gaze instantly, making them unreadable ("moving out of the way").
-  There's no separate cvar to decouple menu placement from aim - both
-  read the same value. The fix is a **Left Stick Click (L3) + Left
-  Grip** press-to-toggle chord suspending head-aim
-  (`vr:set_aim_allowed(false)`).
+- `profile/scripts/menu_aim_freeze.lua` - a Left Stick Click (L3) +
+  Left Grip press-to-toggle chord that suspends head-aim
+  (`vr:set_aim_allowed(false)`), confirmed working via a temporary
+  debug log (chord detection and the toggle both fire correctly, every
+  time). Originally built on the theory that menus/HUD read the same
+  `ControlRotation` head-aim overwrites every frame - **that theory
+  turned out to be wrong**; toggling this chord has no effect on the
+  actual menu-follows-gaze problem (see below). Kept because it's a
+  working, general-purpose "stop aim from following my head for a
+  moment" tool that might be useful for other reasons later, even
+  though it didn't solve what it was built for.
 
-  Getting there took a lot of failed iteration worth remembering: the
-  chord was originally read via `on_xinput_get_state` (checking
-  `XINPUT_GAMEPAD_LEFT_THUMB`/`XINPUT_GAMEPAD_LEFT_SHOULDER` bits, LB
-  being where UEVR maps the left grip). Every version that did more
-  than the absolute minimum inside that callback - even one doing
-  *no string work at all*, just booleans/numbers plus the
-  `vr:set_aim_allowed` call - crashed the game
-  (`UEVRBackend.dll`, `STATUS_STACK_BUFFER_OVERRUN`) the instant L3
-  was pressed. One crash was first misdiagnosed as a pre-existing UEVR
-  bug unrelated to this script (Windows' crash log showed an identical
-  fault offset on a run where the callback hadn't even executed yet) -
-  disabling the script entirely and retesting is what actually
-  disproved that theory. Conclusion: `on_xinput_get_state` fires on
-  whatever thread calls the real `XInputGetState`, almost certainly
-  different from - and unsynchronized with - the thread every other
-  Lua callback runs on, making it unsafe for this build regardless of
-  what runs inside it. Current version avoids it entirely: it reads
-  the chord via UEVR's VR action-handle API
-  (`get_action_handle`/`is_action_active` on
-  `/actions/default/in/Grip` and `/actions/default/in/JoystickClick`,
-  the same one `VR.cpp` itself uses internally) from inside
-  `on_early_calculate_stereo_view_offset` (the render-thread callback
-  `mesh_Weapon.lua` already uses safely every frame) instead. This is
-  the same action-handle API `controller_bindings.lua` tried and
-  abandoned for throwing an uncatchable exception - but that attempt
-  also called it from `on_xinput_get_state`, so that failure may have
-  been the same poisoned-callback problem, not a flaw in the API
-  itself. Untested.
+  Getting `on_xinput_get_state` (which reads the chord's
+  `XINPUT_GAMEPAD_LEFT_THUMB`/`LEFT_SHOULDER` bits, LB being where
+  UEVR maps the left grip) to a stable state took a lot of failed
+  iteration - full trail in git history on this file. Short version:
+  that callback fires on whatever thread calls the real
+  `XInputGetState`, and calling UEVR's own bound Lua functions
+  (`log_info`, `get_action_handle`/`is_action_active`) from it either
+  crashed the game (`UEVRBackend.dll`, `STATUS_STACK_BUFFER_OVERRUN`)
+  or threw exceptions that recursed into a stack overflow
+  (`get_action_handle` specifically - already broken generally, see
+  "Lua binding attempt" below). Plain Lua `io.open` file I/O turned
+  out safe to call from there (just needs a relative path - UEVR's
+  sandbox rejects absolute ones) and is what finally made it possible
+  to confirm the chord logic was correct all along.
+
+  **The actual menu-follows-gaze root cause**, found by reading
+  `OverlayComponent::OpenXR::generate_slate_quad()` in UEVR's source:
+  the game's menus render as an OpenXR composition-layer quad, and its
+  orientation is computed fresh every frame - completely independent
+  of aim/`ControlRotation`. When `VR_DecoupledPitch` and
+  `VR_DecoupledPitchUIAdjust` are both on (both true here), that quad
+  folds in your *current-frame* HMD pitch every frame with no
+  smoothing, specifically to compensate the UI's angle for decoupled
+  pitch - which is exactly what makes menus track your gaze
+  continuously instead of just once when they open. Setting
+  `VR_DecoupledPitchUIAdjust=false` does stop that, but it's not a
+  usable fix: it also flattens general look/aim pitch to eye-level,
+  a bad regression - reverted back to `true`. As a partial mitigation
+  instead, `UI_Size` was reduced from `2.0` to `1.2` so more of the
+  menu fits into a comfortable field of view without needing to tilt
+  as far - confirmed to help somewhat but "still isn't ideal" per
+  Kevin. **Status: unresolved** - the menu-follows-gaze problem is
+  still present; `UI_Distance` (currently `2.0`) may be worth trying
+  next alongside `UI_Size`, or finding some other way to stop
+  `is_decoupled_pitch_ui_adjust_enabled()`'s per-frame pitch fold
+  without losing normal aim pitch.
 
 Deliberately **not** changed from the working third-person config:
 `VR_Compatibility_SkipPostInitProperties=true` stays on (still needed to
