@@ -207,18 +207,18 @@ the working third-person profile:
   for the full trace through UEVR's source). Result: menus re-center on
   your gaze instantly, making them unreadable ("moving out of the way").
   There's no separate cvar to decouple menu placement from aim - both
-  read the same value. Workaround: hold **Left Stick Click (L3) + Left
-  Grip** together to temporarily suspend head-aim
-  (`vr:set_aim_allowed(false)`). A single-button hold (just L3) was
-  tried first and dropped - awkward to hold steady with the same thumb
+  read the same value. Workaround: press **Left Stick Click (L3) + Left
+  Grip** together as a toggle (not a hold) to suspend head-aim
+  (`vr:set_aim_allowed(false)`); press the same chord again to resume
+  it. Plain holds (first just L3, then the L3+grip chord) were tried
+  and dropped both times - awkward to hold steady with the same hand
   that also has to move the stick to navigate a menu - so it's now a
-  two-button chord instead. The left grip normally maps to LB (Quick
-  Access in the game's native scheme), so the script also masks LB out
-  of the reported gamepad state while the chord is held, to stop Quick
-  Access from popping open every time; LB still works normally on its
-  own. Untested - first thing to verify is whether the chord is
-  comfortable to hold while also navigating a menu with the same hand's
-  thumbstick.
+  press-to-toggle chord instead. The left grip normally maps to LB
+  (Quick Access in the game's native scheme), so the script also masks
+  LB out of the reported gamepad state during the toggle press itself,
+  to stop that press from opening Quick Access; LB still works normally
+  on its own. Untested - first thing to verify is whether the chord
+  reliably toggles the freeze on and back off.
 
 Deliberately **not** changed from the working third-person config:
 `VR_Compatibility_SkipPostInitProperties=true` stays on (still needed to
