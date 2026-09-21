@@ -5,7 +5,7 @@
     camera, now sitting at head height via uobjecthook/camera_state.json,
     doesn't see through/inside the character model) and attaches equipped
     weapon meshes to the right-hand motion controller with a per-weapon
-    rotation offset.
+    rotation offset. Shields attach to the left-hand controller.
 
     Ported (MIT license) from vilmarpn/RuneScape-Dragonwilds-Profile-UEVR:
     https://github.com/vilmarpn/RuneScape-Dragonwilds-Profile-UEVR
@@ -22,6 +22,14 @@ local vr = uevr.params.vr
 local weapon_location_offset = Vector3f.new(0.0, 0.0, 0.0)
 local weapon_rotation_offset = Vector3f.new(0.5, 3.3, 0.0)
 local weapon_scale_offset = Vector3f.new(0.7, 0.7, 0.7)
+
+-- Shield (left hand) - tune these in-headset
+local shield_location_offset = Vector3f.new(0.0, 0.0, 0.0)
+local shield_rotation_offset = Vector3f.new(0.5, 3.3, 0.0)
+local shield_scale_offset = Vector3f.new(0.7, 0.7, 0.7)
+
+local HAND_LEFT = 0
+local HAND_RIGHT = 1
 
 local function hide_Mesh(name)
     if name then
@@ -47,19 +55,28 @@ uevr.sdk.callbacks.on_early_calculate_stereo_view_offset(function(device, view_i
     for _, component in ipairs(pawn.Children) do
 
         if component and UEVR_UObjectHook.exists(component) and (string.find(component:get_full_name(), "BP_")) and (not string.find(component:get_full_name(), "Oculus_Camera")) and (not string.find(component:get_full_name(), "Arrow")) then
+            local full_name = component:get_full_name()
+            local is_shield = string.find(string.lower(full_name), "shield") ~= nil
             local state = UEVR_UObjectHook.get_or_add_motion_controller_state(component.RootComponent)
             if state then
-                state:set_hand(1)  -- Right hand
                 state:set_permanent(true)
-                state:set_location_offset(weapon_location_offset)
-                if string.find(component:get_full_name(), "Dagger") then
-                    state:set_rotation_offset(Vector3f.new(0.5, 0.3, 0.0))
-                elseif (string.find(component:get_full_name(), "Shortbow")) or (string.find(component:get_full_name(), "Longbow")) then
-                    state:set_rotation_offset(Vector3f.new(-0.2, 3.3, 0.0))
+                if is_shield then
+                    state:set_hand(HAND_LEFT)
+                    state:set_location_offset(shield_location_offset)
+                    state:set_rotation_offset(shield_rotation_offset)
+                    component.RootComponent.RelativeScale3D = shield_scale_offset
                 else
-                    state:set_rotation_offset(weapon_rotation_offset)
+                    state:set_hand(HAND_RIGHT)
+                    state:set_location_offset(weapon_location_offset)
+                    if string.find(full_name, "Dagger") then
+                        state:set_rotation_offset(Vector3f.new(0.5, 0.3, 0.0))
+                    elseif (string.find(full_name, "Shortbow")) or (string.find(full_name, "Longbow")) then
+                        state:set_rotation_offset(Vector3f.new(-0.2, 3.3, 0.0))
+                    else
+                        state:set_rotation_offset(weapon_rotation_offset)
+                    end
+                    component.RootComponent.RelativeScale3D = weapon_scale_offset
                 end
-                component.RootComponent.RelativeScale3D = weapon_scale_offset
             end
         elseif (string.find(component:get_full_name(), "Arrow")) then
             component.RootComponent.RelativeScale3D = Vector3f.new(1.5, 0.0, 0.0)
